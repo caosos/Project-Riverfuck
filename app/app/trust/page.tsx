@@ -1,0 +1,3 @@
+import { PageHeader } from '@/components/ui';
+const statuses=['Identity not started','Identity pending','Identity verified','Availability declared','Relationship availability review pending','Trust review complete','Restricted / needs review'];
+export default function Page(){return <><PageHeader kicker="Mock verification" title="Trust and availability review"><p>This system depends on truthful participation. If you give the AI a fake version of yourself, it will search for someone compatible with that fake version.</p></PageHeader><div className="grid gap-3">{statuses.map((s,i)=><div className="card flex items-center justify-between p-4" key={s}><b>{s}</b><span className="pill">{i===1||i===3?'current prototype status':'mock state'}</span></div>)}</div></>}
