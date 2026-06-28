@@ -1,0 +1,2 @@
+import Link from 'next/link'; import { PageHeader } from '@/components/ui'; import { adminUsers } from '@/lib/mock-data';
+export default function Page(){return <main className="p-8"><PageHeader kicker="Internal prototype" title="Reviewer user list"/><div className="grid gap-3">{adminUsers.map(u=><Link className="card block p-5" href={`/admin/users/${u.user.id}`} key={u.user.id}><b>{u.user.preferredName}</b><p className="text-sm text-stone-600">{u.user.verificationStatus} · profile {u.profileConfidence}% · risks: {u.riskFlags.join(', ')}</p></Link>)}</div></main>}
