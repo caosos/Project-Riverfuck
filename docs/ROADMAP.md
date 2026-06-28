@@ -11,7 +11,7 @@ Tasks:
 - Create question bank
 - Create compatibility model notes
 - Create safety/privacy notes
-- Create MVP architecture
+- Create MVP architecture and implementation plan
 - Create branding notes
 
 Exit criteria:

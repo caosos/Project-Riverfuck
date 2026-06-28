@@ -111,6 +111,7 @@ Not:
   MATCHING_MODEL.md
   QUESTION_BANK.md
   ROADMAP.md
+  MVP_PLAN.md
   BRANDING_NOTES.md
   SAFETY_PRIVACY.md
 /frontend/
@@ -122,4 +123,4 @@ Not:
 
 ## Next best action
 
-Read `docs/PRODUCT_SPEC.md`, `docs/PROFILE_CATEGORIES.md`, and `docs/MATCHING_MODEL.md`. Then create a first MVP plan with database tables, API endpoints, and profile-intake flow.
+Read `docs/PRODUCT_SPEC.md`, `docs/PROFILE_CATEGORIES.md`, and `docs/MATCHING_MODEL.md`. Then use `docs/MVP_PLAN.md` as the first implementation plan for database tables, API endpoints, and profile-intake flow.
