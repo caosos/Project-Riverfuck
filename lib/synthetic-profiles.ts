@@ -1,5 +1,14 @@
 import type { MockProfile } from './types';
 
+// Shared classification used across both synthetic sources (Codex + Claude).
+export type SyntheticSource = 'codex' | 'claude';
+export type SyntheticQueueStatus = 'vetoed' | 'possible' | 'recommended' | 'high';
+export type ClassifiedSyntheticProfile = SyntheticProfile & {
+  source: SyntheticSource;
+  sourceLabel: string;
+  queueStatus: SyntheticQueueStatus;
+};
+
 export type SyntheticProfile = MockProfile & {
   synthetic: true;
   locationRegion: string;

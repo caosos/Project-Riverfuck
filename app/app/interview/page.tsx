@@ -1,3 +1,22 @@
 import { PageHeader, TopicList } from '@/components/ui';
-const messages=['You do not need to impress me. I am not your match. My job is to understand you accurately enough to search for someone who may actually work for you.','We have talked a lot about values, but not much about conflict. Can we cover that next?','Earlier you described needing closeness, but also needing solitude after work. Which one matters more in a relationship?'];
-export default function Page(){return <><PageHeader kicker="Center of product" title="AI interview dashboard"><p>A private interviewer builds the profile through conversation evidence. Voice-ready controls are placeholders for later integration.</p></PageHeader><div className="grid gap-6 lg:grid-cols-[1fr_380px]"><section className="card p-5"><div className="mb-4 flex justify-between"><span className="pill">Current topic: conflict and repair</span><span className="pill">Voice-ready placeholder</span></div><div className="grid gap-3">{messages.map((m,i)=><div className={`rounded-2xl p-4 ${i===0?'bg-[#17332f] text-white':'bg-stone-100'}`} key={m}>{m}</div>)}</div><textarea className="mt-4 min-h-32 w-full rounded-2xl border border-stone-200 p-4" placeholder="What would you like to talk about today?"/><button className="btn mt-3">Save mock transcript state</button></section><aside><TopicList/></aside></div></>}
+import InterviewClient from './InterviewClient';
+
+export default function Page() {
+  return (
+    <>
+      <PageHeader kicker="Center of product" title="AI interview dashboard">
+        <p>
+          A private, text-first interviewer builds your compatibility model from conversation evidence. There is no voice and
+          no always-listening microphone — you type, you click send, and you stay in control of what the model records.
+        </p>
+      </PageHeader>
+      <div className="grid gap-8">
+        <InterviewClient />
+        <section>
+          <h2 className="mb-4 text-2xl font-black tracking-[-.04em]">Topic coverage</h2>
+          <TopicList />
+        </section>
+      </div>
+    </>
+  );
+}
