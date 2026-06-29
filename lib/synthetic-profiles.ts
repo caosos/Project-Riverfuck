@@ -1,4 +1,4 @@
-import type { MockProfile } from './types';
+import type { MockProfile, RelationshipStructure, RelationshipIntentCategory, CurrentAvailabilityStatus } from './types';
 
 // Shared classification used across both synthetic sources (Codex + Claude).
 export type SyntheticSource = 'codex' | 'claude';
@@ -78,7 +78,7 @@ const options: OptionSet = {
   money: ['budget-conscious planner', 'entrepreneurial risk tolerant', 'stable saver', 'generous but needs guardrails', 'debt-averse', 'career rebuilding'],
   substances: ['no hard drugs', 'sober lifestyle', 'social alcohol acceptable', 'no smoking', 'cannabis incompatible', 'substance boundaries unresolved'],
   attraction: ['warm grounded presentation', 'expressive face', 'understated style', 'fitness-oriented lifestyle', 'creative aesthetic', 'traditional presentation', 'voice and presence matter', 'style flexibility high'],
-  dealbreakers: ['fake identity', 'hidden unavailability', 'monogamy mismatch', 'wants children mismatch', 'major substance conflict', 'location impossibility', 'deliberate deception', 'incompatible intimacy boundaries'],
+  dealbreakers: ['fake identity', 'hidden unavailability', 'non-exclusive when I require exclusivity', 'children timeline mismatch', 'major substance conflict', 'location impossibility', 'deliberate deception', 'incompatible intimacy boundaries'],
   flexibility: ['relocation-open', 'location-locked', 'age range flexible', 'age range strict', 'worldview flexible', 'worldview strict', 'family timeline flexible', 'family timeline strict'],
   verification: ['identity pending', 'identity verified', 'availability declared', 'trust review complete', 'verification incomplete'],
   riskFlags: ['verification pending', 'relationship status needs verification', 'low intimacy-boundary coverage', 'conflict repair needs more evidence', 'location constraint strict', 'politics tolerance unresolved', 'substance boundaries unresolved', 'no active risk flags'],
@@ -95,10 +95,34 @@ export function generateSyntheticProfiles(count = 1000): SyntheticProfile[] {
     const relationshipIntent = pick(options.relationshipIntents, n, 3);
     const relationshipStatus = pick(options.relationshipStatuses, n, 2);
     const riskBase = pickMany(options.riskFlags, n, n % 5 === 0 ? 2 : 1, 9).filter((r) => r !== 'no active risk flags');
-    const hardGates = n % 11 === 0 ? [pick(options.dealbreakers, n, 7)] : n % 29 === 0 ? ['relationship intent mismatch risk'] : [];
+    // Genuine self-carried hard disqualifiers only (identity/availability/deception/
+    // boundaries). Structure, intent, and children are handled pairwise, never as a
+    // self-veto — being monogamous is the expected target state, not a disqualifier.
+    const selfDisqualifiers = ['fake identity', 'hidden unavailability', 'deliberate deception', 'incompatible intimacy boundaries'];
+    const hardGates = n % 11 === 0 ? [pick(selfDisqualifiers, n, 7)] : [];
     const profileConfidence = Math.min(94, Math.max(34, 50 + (n * 17) % 45));
     const poolProbability = Math.min(88, Math.max(18, 28 + (n * 13) % 61));
     const attractionFloor = Math.min(92, Math.max(35, 45 + (n * 19) % 52));
+    // Structured relationship taxonomy. Most are the product's target state
+    // (exclusive monogamous + serious commitment); a deterministic minority vary
+    // for QA coverage of structure/intent/availability conflicts.
+    const relationshipIntentCategory: RelationshipIntentCategory = relationshipIntent.includes('marriage')
+      ? 'marriage_or_life_commitment'
+      : relationshipIntent.includes('slow pace')
+        ? 'long_term_but_slow_pace'
+        : relationshipIntent.includes('casual')
+          ? (n % 2 === 0 ? 'casual' : 'uncertain')
+          : 'serious_long_term';
+    const relationshipStructure: RelationshipStructure =
+      n % 17 === 0 ? 'polyamorous' : n % 13 === 0 ? 'open_relationship' : n % 23 === 0 ? 'non_exclusive' : n % 19 === 0 ? 'unclear' : 'exclusive_monogamous';
+    const currentAvailabilityStatus: CurrentAvailabilityStatus =
+      n % 31 === 0 ? 'currently_involved'
+      : relationshipStatus.includes('single') ? 'single'
+      : relationshipStatus.includes('divorced') ? 'divorced'
+      : relationshipStatus.includes('widowed') ? 'widowed'
+      : relationshipStatus.includes('separated') ? 'separated'
+      : 'unclear';
+    const matchingConsent = n % 7 !== 0;
     return {
       synthetic: true,
       user: {
@@ -139,6 +163,10 @@ export function generateSyntheticProfiles(count = 1000): SyntheticProfile[] {
       attractionFloor,
       profileConfidence,
       poolProbability,
+      relationshipStructure,
+      relationshipIntentCategory,
+      currentAvailabilityStatus,
+      matchingConsent,
     };
   });
 }

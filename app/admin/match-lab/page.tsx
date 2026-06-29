@@ -10,11 +10,14 @@ export default function Page() {
 
   return (
     <main className="p-8">
-      <PageHeader kicker="Internal QA tooling" title="Admin Match Lab">
+      <PageHeader kicker="Admin QA Lab — internal only" title="Admin Match Lab">
         <p>
-          Inspect how the AI/profile/matching system processed each synthetic persona — instead of blindly trusting a
-          recommendation score. Every recommendation here is shown with its explanation: why it scored high, why it was
-          vetoed, what was missing, what the AI inferred versus directly observed, and what to ask next.
+          This is not a customer dating interface. It is an internal QA/debugging lab for inspecting how the intake →
+          eligibility → matching pipeline processed each synthetic persona — instead of blindly trusting a score. Matching
+          does not begin until baseline completion, so only the Eligible Match Pool holds real match candidates; everything
+          else is Intake / QA (Needs Completion or Not Eligible Yet). Every record carries a visible explanation: why it is
+          eligible or not, why it scored high or was vetoed, what was missing, what the AI inferred versus directly observed,
+          and what to ask next.
         </p>
       </PageHeader>
 

@@ -10,7 +10,9 @@
 
 import { assessCompatibility } from './matching';
 import { seedProfile } from './mock-data';
-import { combinedSyntheticProfiles, queueStatusLabels } from './synthetic-dataset';
+import { combinedSyntheticProfiles, queueStatusLabels, eligibilityById } from './synthetic-dataset';
+import { evaluateEligibility, ELIGIBILITY_LABELS, type EligibilityResult, type EligibilityStatus } from './eligibility';
+import { buildEvidenceMap, type EvidenceItem } from './evidence';
 import { getClaudeRaw, type RawClaudeProfile } from './claude-profiles';
 import type { ClassifiedSyntheticProfile, SyntheticQueueStatus } from './synthetic-profiles';
 import type { MatchAssessment } from './types';
@@ -39,6 +41,12 @@ export type LabRow = {
   hardGatePass: boolean;
   recommendationConfidence: number;
   riskFlags: string[];
+  relationshipStructure: string;
+  relationshipIntentCategory: string;
+  currentAvailabilityStatus: string;
+  eligibilityStatus: EligibilityStatus;
+  eligibilityLabel: string;
+  inPool: boolean;
   why: string;
 };
 
@@ -83,6 +91,10 @@ export type InspectorPanel = {
   verificationStatus: string;
   trustStatus: string;
   relationshipIntent: string;
+  relationshipStructure: string;
+  relationshipIntentCategory: string;
+  currentAvailabilityStatus: string;
+  matchingConsent: boolean;
   communicationStyle: string;
   conflictStyle: string;
   emotionalRegulation: string;
@@ -104,6 +116,8 @@ export type LabDetail = {
   inspector: InspectorPanel;
   sourceData: RawClaudeProfile | null;
   sourceNote: string;
+  eligibility: EligibilityResult;
+  evidence: EvidenceItem[];
   audit: AuditPanel;
   scores: ScoreDimension[];
   comparison: ComparisonPanel;
@@ -111,7 +125,9 @@ export type LabDetail = {
 
 export type FilterOptions = {
   sources: string[];
+  segments: { value: EligibilityStatus; label: string }[];
   buckets: { value: SyntheticQueueStatus; label: string }[];
+  relationshipStructures: string[];
   relationshipIntents: string[];
   childrenStatuses: string[];
   affectionLevels: string[];
@@ -129,6 +145,8 @@ export type SeedSummary = {
   age: number;
   region: string;
   relationshipIntent: string;
+  relationshipStructure: string;
+  relationshipIntentCategory: string;
   communicationStyle: string;
   verificationStatus: string;
 };
@@ -421,15 +439,24 @@ function buildComparison(
 // Rows + detail + filter metadata
 // ---------------------------------------------------------------------------
 
-function whyLine(p: ClassifiedSyntheticProfile, assessment: MatchAssessment): string {
-  if (!assessment.hardGatePass) return `Vetoed: ${assessment.vetoReasons[0] ?? 'hard gate failed'}`;
-  if (p.queueStatus === 'high') return `High confidence (${assessment.recommendationConfidence}%): strong intent & trust signals`;
-  if (p.queueStatus === 'recommended') return `Recommended (${assessment.recommendationConfidence}%): clears the bar with minor cautions`;
-  return `Possible (${assessment.recommendationConfidence}%): below the recommendation threshold, needs more evidence`;
+// Eligibility is decided first; recommendation strength is only explained for
+// profiles that are actually in the Eligible Match Pool.
+function whyLine(elig: EligibilityResult, p: ClassifiedSyntheticProfile, assessment: MatchAssessment): string {
+  if (elig.status === 'not_eligible') return `Not a match candidate — ${elig.summary}`;
+  if (elig.status === 'needs_completion') return `Intake/QA — ${elig.summary}`;
+  if (!assessment.hardGatePass) return `In pool but vetoed against seed: ${assessment.vetoReasons[0] ?? 'structure/availability conflict'}`;
+  if (p.queueStatus === 'high') return `Eligible · high confidence (${assessment.recommendationConfidence}%): both exclusive & serious, strong signals`;
+  if (p.queueStatus === 'recommended') return `Eligible · recommended (${assessment.recommendationConfidence}%): clears the bar with minor cautions`;
+  return `Eligible · possible (${assessment.recommendationConfidence}%): below the recommendation threshold, needs more evidence`;
+}
+
+function getEligibility(p: ClassifiedSyntheticProfile): EligibilityResult {
+  return eligibilityById.get(p.user.id) ?? evaluateEligibility(p);
 }
 
 function buildRow(p: ClassifiedSyntheticProfile): LabRow {
   const a = getAssessment(p);
+  const elig = getEligibility(p);
   return {
     id: p.user.id,
     source: p.source,
@@ -450,7 +477,13 @@ function buildRow(p: ClassifiedSyntheticProfile): LabRow {
     hardGatePass: a.hardGatePass,
     recommendationConfidence: a.recommendationConfidence,
     riskFlags: p.riskFlags,
-    why: whyLine(p, a),
+    relationshipStructure: p.relationshipStructure,
+    relationshipIntentCategory: p.relationshipIntentCategory,
+    currentAvailabilityStatus: p.currentAvailabilityStatus,
+    eligibilityStatus: elig.status,
+    eligibilityLabel: elig.statusLabel,
+    inPool: elig.status === 'eligible',
+    why: whyLine(elig, p, a),
   };
 }
 
@@ -472,6 +505,10 @@ export function getLabDetail(id: string): LabDetail | null {
     verificationStatus: p.user.verificationStatus,
     trustStatus: p.user.trustStatus,
     relationshipIntent: p.user.relationshipIntent,
+    relationshipStructure: p.relationshipStructure,
+    relationshipIntentCategory: p.relationshipIntentCategory,
+    currentAvailabilityStatus: p.currentAvailabilityStatus,
+    matchingConsent: p.matchingConsent,
     communicationStyle: p.communicationStyle,
     conflictStyle: p.conflictStyle,
     emotionalRegulation: p.emotionalRegulation,
@@ -495,6 +532,8 @@ export function getLabDetail(id: string): LabDetail | null {
       p.source === 'claude'
         ? 'Original Claude-generated source profile shown below the normalized view.'
         : 'Codex profiles are generated deterministically in-app; the normalized record above is the source of truth (no separate raw document).',
+    eligibility: getEligibility(p),
+    evidence: buildEvidenceMap(p, raw),
     audit: buildAudit(p, raw),
     scores,
     comparison: buildComparison(p, scores, assessment),
@@ -507,10 +546,15 @@ export function getFilterOptions(): FilterOptions {
   const ages = rows.map((p) => p.user.age);
   return {
     sources: ['codex', 'claude'],
+    segments: (['eligible', 'needs_completion', 'not_eligible'] as EligibilityStatus[]).map((value) => ({
+      value,
+      label: ELIGIBILITY_LABELS[value],
+    })),
     buckets: (['vetoed', 'possible', 'recommended', 'high'] as SyntheticQueueStatus[]).map((value) => ({
       value,
       label: queueStatusLabels[value],
     })),
+    relationshipStructures: distinct(rows.map((p) => p.relationshipStructure)),
     relationshipIntents: distinct(rows.map((p) => p.user.relationshipIntent)),
     childrenStatuses: distinct(rows.map((p) => p.childrenStatus)),
     affectionLevels: distinct(rows.map((p) => p.affectionLevel)),
@@ -530,6 +574,8 @@ export function getSeedSummary(): SeedSummary {
     age: seedProfile.user.age,
     region: `${seedProfile.user.locationCity}, ${seedProfile.user.locationState}`,
     relationshipIntent: seedProfile.user.relationshipIntent,
+    relationshipStructure: seedProfile.relationshipStructure,
+    relationshipIntentCategory: seedProfile.relationshipIntentCategory,
     communicationStyle: 'direct, accuracy-oriented',
     verificationStatus: seedProfile.user.verificationStatus,
   };

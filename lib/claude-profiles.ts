@@ -9,6 +9,7 @@ import type {
   SyntheticProfile,
   SyntheticQueueStatus,
 } from './synthetic-profiles';
+import type { RelationshipStructure, RelationshipIntentCategory, CurrentAvailabilityStatus } from './types';
 
 // --- Raw shape (loose; the importer is defensive about missing fields) -------
 
@@ -52,14 +53,16 @@ export type RawClaudeProfile = {
     politics_tolerance?: string;
     ethics_keywords?: string[];
     dealbreaker_values?: string[];
+    confidence?: string;
   };
   communication?: {
     style?: string;
     conflict_repair?: string;
     emotional_expressiveness?: string;
     listening_style?: string;
+    confidence?: string;
   };
-  conflict_stress?: { anger_style?: string; avoidance_tendency?: string; escalation_risk?: string; accountability?: string };
+  conflict_stress?: { anger_style?: string; avoidance_tendency?: string; escalation_risk?: string; accountability?: string; confidence?: string };
   attachment_emotional?: {
     attachment_style?: string;
     jealousy_level?: string;
@@ -76,7 +79,7 @@ export type RawClaudeProfile = {
     mental_health_management?: string;
   };
   work_money?: { occupation?: string; financial_style?: string; ambition_level?: string; income_range?: string };
-  family_children?: { children_status?: string; wants_children?: string; family_involvement_desired?: string };
+  family_children?: { children_status?: string; wants_children?: string; family_involvement_desired?: string; confidence?: string };
   religion_politics_detailed?: {
     could_date_different_faith?: boolean;
     could_date_different_politics?: boolean;
@@ -95,10 +98,11 @@ export type RawClaudeProfile = {
     public_affection_comfort?: string;
     exclusivity_expectation?: string;
     boundaries_flagged?: boolean;
+    confidence?: string;
   };
   chemistry?: { primary_chemistry_tags?: string[]; banter_affinity?: string; playful_antagonistic?: boolean };
   logistics?: { availability?: string; custody_schedule?: string; timing?: string };
-  past_relationship_patterns?: { repeating_theme?: string; accountability_for_past_failures?: string; ready_to_do_differently?: string };
+  past_relationship_patterns?: { repeating_theme?: string; accountability_for_past_failures?: string; ready_to_do_differently?: string; confidence?: string };
   trust_signals?: {
     willing_to_verify?: string;
     background_check_consented?: boolean;
@@ -209,6 +213,34 @@ function normalizeClaudeProfile(raw: RawClaudeProfile, index: number): Classifie
   const queueStatus = QUEUE_MAP[raw.match_queue_status ?? ''] ?? 'possible';
   const scores = raw.match_dimension_scores;
 
+  // Structured relationship taxonomy derived from explicit Claude source fields.
+  const monogamy = raw.relationship_intent?.monogamy;
+  const exclusivity = raw.sexual_romantic?.exclusivity_expectation;
+  const relationshipStructure: RelationshipStructure =
+    monogamy === 'exclusive_monogamy' || monogamy === 'open_to_monogamy'
+      ? 'exclusive_monogamous'
+      : monogamy === 'ethical_nonmonogamy'
+        ? raw.relationship_intent?.marriage_interest === 'no'
+          ? 'polyamorous'
+          : exclusivity === 'open_to_discussion'
+            ? 'non_exclusive'
+            : 'open_relationship'
+        : 'unclear';
+  const relationshipIntentCategory: RelationshipIntentCategory =
+    raw.match_readiness?.intent_clarity === 'unclear'
+      ? 'uncertain'
+      : raw.relationship_intent?.marriage_interest === 'yes'
+        ? 'marriage_or_life_commitment'
+        : raw.relationship_intent?.timeline_urgency === 'low'
+          ? 'long_term_but_slow_pace'
+          : 'serious_long_term';
+  const statusVerified = raw.trust_signals?.relationship_status_verified === true;
+  const inconsistentStatus = (raw.risk_flags ?? []).includes('inconsistent_relationship_status');
+  const currentAvailabilityStatus: CurrentAvailabilityStatus =
+    inconsistentStatus || !statusVerified ? 'unclear' : 'single';
+  const matchingConsent =
+    raw.match_readiness?.status === 'ready' || raw.match_readiness?.status === 'nearly_ready';
+
   const profile: SyntheticProfile = {
     synthetic: true,
     user: {
@@ -256,12 +288,18 @@ function normalizeClaudeProfile(raw: RawClaudeProfile, index: number): Classifie
     ],
     topics: [],
     categories: [],
-    // Native source verdict drives counts; keep a hard gate when the source vetoed it.
-    hardGates: queueStatus === 'vetoed' ? ['source model flagged do_not_recommend'] : [],
+    // Hard gates are genuine self-carried disqualifiers only. The model's
+    // do_not_recommend verdict drives recommendation strength (queueStatus) and
+    // eligibility is derived from real signals — it is not a hard disqualifier here.
+    hardGates: [],
     riskFlags: raw.risk_flags || [],
     attractionFloor: pct(scores?.attraction_fit, 60),
     profileConfidence: raw.match_readiness?.profile_completeness_pct ?? 60,
     poolProbability: avgScore(scores, ['relationship_intent', 'logistics', 'trust_verification'], 50),
+    relationshipStructure,
+    relationshipIntentCategory,
+    currentAvailabilityStatus,
+    matchingConsent,
   };
 
   return { ...profile, source: 'claude', sourceLabel: 'Claude imported', queueStatus };
