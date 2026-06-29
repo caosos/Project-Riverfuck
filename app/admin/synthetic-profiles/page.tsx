@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { PageHeader, Metric } from '@/components/ui';
 import {
   combinedSyntheticProfiles,
@@ -22,6 +23,10 @@ export default function Page() {
           no real private profile data — this is QA data, not real users.
         </p>
       </PageHeader>
+
+      <div className="mb-6">
+        <Link className="btn" href="/admin/match-lab">Open Admin Match Lab →</Link>
+      </div>
 
       <section className="mb-8 grid gap-4 md:grid-cols-3">
         <Metric label="Codex generated profiles" value={syntheticCounts.codex.toLocaleString()} help="Deterministically generated in-app." />

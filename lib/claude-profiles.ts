@@ -12,31 +12,109 @@ import type {
 
 // --- Raw shape (loose; the importer is defensive about missing fields) -------
 
-type RawClaudeProfile = {
+export type RawClaudeProfile = {
   profile_id?: string;
   uuid?: string;
   synthetic?: boolean;
-  verification?: { status?: string; identity_verified?: boolean };
-  match_readiness?: { status?: string; profile_completeness_pct?: number };
+  date_created?: string;
+  verification?: {
+    status?: string;
+    identity_verified?: boolean;
+    photo_verified?: boolean;
+    background_check?: boolean;
+  };
+  match_readiness?: {
+    status?: string;
+    profile_completeness_pct?: number;
+    contradictions_flagged?: number;
+    intent_clarity?: string;
+  };
   identity?: {
     preferred_name?: string;
     last_name_initial?: string;
     age?: number;
-    location?: { city?: string; state?: string };
+    gender?: string;
+    sexual_orientation?: string;
+    ethnicity?: string;
+    location?: { city?: string; state?: string; country?: string };
   };
-  relationship_intent?: { summary?: string };
-  values_worldview?: { religion?: string; politics_tolerance?: string };
-  communication?: { style?: string; conflict_repair?: string };
-  conflict_stress?: { anger_style?: string; escalation_risk?: string };
-  attachment_emotional?: { attachment_style?: string; affection_level?: string };
-  lifestyle?: { hobbies?: string[] };
-  health_wellness?: { substances?: string[]; smoking?: string; drinking?: string };
-  work_money?: { financial_style?: string };
-  family_children?: { children_status?: string; wants_children?: string };
-  attraction?: { physical_preferences_keywords?: string[] };
-  sexual_romantic?: { libido?: string; boundaries_flagged?: boolean };
-  chemistry?: { primary_chemistry_tags?: string[] };
-  dealbreakers?: { hard?: string[]; logistics_hard_limits?: { open_to_relocation?: boolean } };
+  relationship_intent?: {
+    summary?: string;
+    marriage_interest?: string;
+    monogamy?: string;
+    timeline_urgency?: string;
+    confidence?: string;
+    importance?: string;
+  };
+  values_worldview?: {
+    religion?: string;
+    politics?: string;
+    politics_tolerance?: string;
+    ethics_keywords?: string[];
+    dealbreaker_values?: string[];
+  };
+  communication?: {
+    style?: string;
+    conflict_repair?: string;
+    emotional_expressiveness?: string;
+    listening_style?: string;
+  };
+  conflict_stress?: { anger_style?: string; avoidance_tendency?: string; escalation_risk?: string; accountability?: string };
+  attachment_emotional?: {
+    attachment_style?: string;
+    jealousy_level?: string;
+    reassurance_need?: string;
+    trust_building_pace?: string;
+    affection_level?: string;
+  };
+  lifestyle?: { hobbies?: string[]; sleep_schedule?: string; introvert_extrovert?: string; routine_vs_spontaneous?: string };
+  health_wellness?: {
+    fitness_level?: string;
+    diet?: string;
+    substance_stance?: string;
+    substance_dealbreaker?: string;
+    mental_health_management?: string;
+  };
+  work_money?: { occupation?: string; financial_style?: string; ambition_level?: string; income_range?: string };
+  family_children?: { children_status?: string; wants_children?: string; family_involvement_desired?: string };
+  religion_politics_detailed?: {
+    could_date_different_faith?: boolean;
+    could_date_different_politics?: boolean;
+    faith_practice_intensity?: string;
+  };
+  attraction?: {
+    partner_gender_preference?: string;
+    age_range_preferred?: { min?: number; max?: number };
+    physical_preferences_keywords?: string[];
+    attraction_flexibility?: string;
+    attraction_dominance_over_values?: string;
+  };
+  sexual_romantic?: {
+    affection_style?: string[];
+    libido?: string;
+    public_affection_comfort?: string;
+    exclusivity_expectation?: string;
+    boundaries_flagged?: boolean;
+  };
+  chemistry?: { primary_chemistry_tags?: string[]; banter_affinity?: string; playful_antagonistic?: boolean };
+  logistics?: { availability?: string; custody_schedule?: string; timing?: string };
+  past_relationship_patterns?: { repeating_theme?: string; accountability_for_past_failures?: string; ready_to_do_differently?: string };
+  trust_signals?: {
+    willing_to_verify?: string;
+    background_check_consented?: boolean;
+    social_proof_linked?: boolean;
+    relationship_status_verified?: boolean;
+  };
+  ai_observed?: {
+    consistency_score?: number;
+    openness_score?: number;
+    seriousness_score?: number;
+    rigidity_score?: number;
+    contradiction_markers?: number;
+    completion_depth?: string;
+    note?: string;
+  };
+  dealbreakers?: { hard?: string[]; soft?: string[]; logistics_hard_limits?: { open_to_relocation?: boolean; max_distance_miles?: number } };
   match_dimension_scores?: Record<string, number>;
   risk_flags?: string[];
   match_queue_status?: string;
@@ -167,8 +245,9 @@ function normalizeClaudeProfile(raw: RawClaudeProfile, index: number): Classifie
     lifestylePreferences: raw.lifestyle?.hobbies || [],
     workMoneyValues: raw.work_money?.financial_style || 'unspecified',
     healthSubstanceBoundaries: [
-      ...(raw.health_wellness?.substances || []),
-      raw.health_wellness?.smoking ? `smoking: ${raw.health_wellness.smoking}` : '',
+      raw.health_wellness?.substance_stance || '',
+      raw.health_wellness?.substance_dealbreaker ? `dealbreaker: ${raw.health_wellness.substance_dealbreaker}` : '',
+      raw.health_wellness?.fitness_level ? `fitness: ${raw.health_wellness.fitness_level}` : '',
     ].filter(Boolean),
     attractionPreferences: raw.attraction?.physical_preferences_keywords || [],
     dealbreakers: raw.dealbreakers?.hard || [],
@@ -195,3 +274,13 @@ export const claudeImportValidation: ClaudeImportValidation = validateClaudeImpo
 export const claudeSyntheticProfiles: ClassifiedSyntheticProfile[] = (rawFile.profiles ?? []).map(
   normalizeClaudeProfile,
 );
+
+// Raw source data keyed by normalized profile id — used by the admin Match Lab to
+// show the original Claude profile fields behind a normalized record. Server-only.
+export const claudeRawById: Map<string, RawClaudeProfile> = new Map(
+  (rawFile.profiles ?? []).map((p, i) => [p.profile_id || `CLAUDE-${String(i + 1).padStart(4, '0')}`, p]),
+);
+
+export function getClaudeRaw(id: string): RawClaudeProfile | null {
+  return claudeRawById.get(id) ?? null;
+}
